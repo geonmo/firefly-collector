@@ -5,8 +5,7 @@ PUT _index_template/firefly-template
     "settings": {
       "index": {
         "number_of_shards": 1,
-        "number_of_replicas": 1,
-        "routing.allocation.include._tier_preference": "data_tier_hot,data_tier_warm,data_tier_cold"
+        "number_of_replicas": 1
       }
     },
     "mappings": {
@@ -61,14 +60,6 @@ PUT _index_template/firefly-template
             "match": "*_location",
             "mapping": {
               "type": "geo_point"
-            }
-          }
-        },
-        {
-          "histogram_suffix_field": {
-            "match": "*_hist",
-            "mapping": {
-              "type": "histogram"
             }
           }
         },

@@ -1,7 +1,11 @@
 version: "3.9"
 services:
   logstash:
-    image: docker.elastic.co/logstash/logstash:7.17.19
+    build:
+      context: ./docker/logstash
+      args:
+        LOGSTASH_VERSION: "9.5.5"
+    image: firefly-collector/logstash:9.5.5
     ulimits:
       memlock:
         soft: -1

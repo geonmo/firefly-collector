@@ -10,11 +10,11 @@ output {
                 #Change credentials to match your server
                 user => "CHANGEME"
                 password => "CHANGEME"
-                ssl => "true"
+                ssl_enabled => true
                 # Add your CA cert into certificates directory
-                cacert => "/etc/stardust/pipeline/certificates/elastic.cer"
-                #This just disables hostname checking, still need CA cert
-                ssl_certificate_verification => false
+                ssl_certificate_authorities => ["/etc/stardust/pipeline/certificates/elastic.cer"]
+                #Disables certificate and hostname verification; use "full" in production
+                ssl_verification_mode => "none"
                 ilm_enabled => "true"
                 ilm_pattern => "{now/d}-000001"
                 ilm_rollover_alias => "stardust_firefly"

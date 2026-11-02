@@ -13,7 +13,7 @@
   - [3. Duration Calculation (`05-calc-duration.conf`)](#3-duration-calculation-05-calc-durationconf)
   - [4. Throughput Calculation (`06-calc-throughput.conf`)](#4-throughput-calculation-06-calc-throughputconf)
   - [5. Post-Processing (`63-post-processing.conf`)](#5-post-processing-63-post-processingconf)
-  - [6. Local Traffic Filtering (`64-drop-local.conf`)](#6-local-traffic-filtering-64-drop-localconf)
+  - [6. Local Traffic Filtering (`72-drop-local.conf`)](#6-local-traffic-filtering-72-drop-localconf)
   - [7. CRIC Site Enrichment (`70-cric-sites.conf`)](#7-cric-site-enrichment-70-cric-sitesconf)
   - [8. SciTags Experiment/Activity Enrichment (`71-scitags.conf`)](#8-scitags-experimentactivity-enrichment-71-scitagsconf)
 - [Metadata Generation Scripts](#metadata-generation-scripts)
@@ -65,6 +65,13 @@ find conf/logstash/ -maxdepth 1 -type f \
   ! -name "99-kafka.conf" -delete
 ```
 
+Build the Logstash image (Logstash OSS 9.5.5 with the OpenSearch output plugin, see
+[Logstash 9 Notes](#logstash-9-notes)):
+
+```bash
+docker build -t firefly-collector/logstash:9.5.5 docker/logstash
+```
+
 Then start Logstash with `docker run`:
 
 ```bash
@@ -76,13 +83,13 @@ docker run \
   -v ./conf/ruby/:/usr/lib/firefly/ruby/ \
   -v ./conf/logstash_data/:/etc/stardust/pipeline/ \
   -e XPACK_MONITORING_ENABLED=false \
-  docker.elastic.co/logstash/logstash:7.17.19
+  firefly-collector/logstash:9.5.5
 ```
 
-or, equivalently, with the bundled Compose file:
+or, equivalently, with the bundled Compose file (it builds the image itself):
 
 ```bash
-docker compose up -d
+docker compose up -d --build
 docker compose logs -f logstash
 ```
 
@@ -225,13 +232,13 @@ Normalizes and renames fields for consistent data model.
 
 **Drop condition:** Events without `[meta][state]` are dropped (incomplete flows)
 
-### 6. Local Traffic Filtering (`64-drop-local.conf`)
+### 6. Local Traffic Filtering (`72-drop-local.conf`)
 
 Drops traffic where source and destination are at the same site.
 
 **Logic:**
 - Uses CRIC site names: `[meta][cric][src][name]` and `[meta][cric][dst][name]`
-- Comparison performed after site enrichment in `70-cric-sites.conf`
+- Comparison performed after site enrichment in `70-cric-sites.conf` (the file must sort after it)
 
 **Use case:** Eliminates internal network traffic for sites that both ingest and export data.
 
@@ -374,6 +381,8 @@ Sends firefly messages to a Kafka bus for integration with the Research & Educat
 
 ## Logstash Deployment
 
+The image is built from `docker/logstash/Dockerfile` (`docker build -t firefly-collector/logstash:9.5.5 docker/logstash`).
+
 ```bash
 docker run \
   --network=host \
@@ -383,8 +392,26 @@ docker run \
   -v ./conf/ruby/:/usr/lib/firefly/ruby/ \
   -v ./conf/logstash_data/:/etc/stardust/pipeline/ \
   -e XPACK_MONITORING_ENABLED=false \
-  docker.elastic.co/logstash/logstash:7.17.19
+  firefly-collector/logstash:9.5.5
 ```
+
+### Logstash 9 Notes
+
+The collector targets Logstash 9.5.5. Compared to the former 7.17 image:
+
+- **Image** - built from `docker.elastic.co/logstash/logstash-oss` because the OpenSearch output plugin
+  (`logstash-output-opensearch`) is not bundled with Logstash. Change the version with the `LOGSTASH_VERSION`
+  build argument.
+- **ECS compatibility** - Logstash 8+ defaults to `pipeline.ecs_compatibility: v8`, which moves geoip results to
+  `[target][geo][...]` and breaks the CRIC enrichment. `logstash-output-opensearch` is also reported to fail at
+  startup on Logstash 9 with ECS enabled. The image sets `pipeline.ecs_compatibility: disabled` in `logstash.yml`.
+  It cannot be set on the opensearch output itself.
+- **Elasticsearch output SSL options** - the options removed in Logstash 9 were renamed in
+  `99-outputs.conf.example` (`ssl` → `ssl_enabled`, `cacert` → `ssl_certificate_authorities`,
+  `ssl_certificate_verification` → `ssl_verification_mode`).
+- **OpenSearch** - use the `opensearch` output (`99-opensearch.conf.example`); the Elastic `elasticsearch` output
+  refuses to talk to OpenSearch. `logstash-output-opensearch` has no official Logstash 9 support statement yet,
+  so test a new Logstash/OpenSearch combination before upgrading production.
 
 ### Opensearch Deployment (Docker Compose)
 
@@ -394,7 +421,7 @@ This setup is recommended for the *Local/site Collector* configuration where you
 version: '3'
 services:
   opensearch-node:
-    image: opensearchproject/opensearch:latest
+    image: opensearchproject/opensearch:3.5.0
     environment:
       - cluster.name=opensearch-cluster
       - discovery.type=single-node
@@ -410,7 +437,7 @@ services:
     privileged: true
 
   opensearch-dashboards:
-    image: opensearchproject/opensearch-dashboards:latest
+    image: opensearchproject/opensearch-dashboards:3.5.0
     depends_on:
       - opensearch-node
     ports:
@@ -475,8 +502,8 @@ Supports:
 
 ## Notes
 
-- All Logstash configurations use conditional ordering (01, 02, 05, 06, 63, 70, 71, 99) to ensure proper processing order
+- All Logstash configurations use conditional ordering (01, 02, 05, 06, 63, 70, 71, 72, 99) to ensure proper processing order
 - The pipeline requires both `cric.mmdb` and YAML maps for full enrichment functionality
 - Site normalization ensures `sent` is the larger value (except for http-put/http-get)
 - Local traffic filtering requires site enrichment to be effective
-- For the Kafka output, install the Logstash Kafka plugin: `bin/logstash-plugin install logstash-output-kafka`
+- The Kafka output is bundled with Logstash OSS (`logstash-integration-kafka`); no extra plugin install is needed
