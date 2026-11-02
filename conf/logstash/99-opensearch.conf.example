@@ -6,7 +6,7 @@ output {
               user => 'admin'
               password => 'CHANGEME'
           }
-          index => "firefly2-stream"
+          index => "firefly-stream"
           action => "create"
    }
 }
