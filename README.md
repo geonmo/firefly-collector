@@ -205,6 +205,7 @@ Computes throughput and total bytes for flows with duration data.
 **Ruby script:** `conf/ruby/calc_throughput.rb`
 
 **Logic:**
+- Runs only when `duration` and both `[usage][received]` and `[usage][sent]` are present
 - Uses `duration` from previous filter
 - Calculates `usage_bytes = max(received, sent)`
 - Calculates `total_bytes = received + sent`
