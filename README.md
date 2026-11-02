@@ -83,7 +83,6 @@ docker run \
   -v ./conf/logstash/:/usr/share/logstash/pipeline/ \
   -v ./conf/ruby/:/usr/lib/firefly/ruby/ \
   -v ./conf/logstash_data/:/etc/stardust/pipeline/ \
-  -e XPACK_MONITORING_ENABLED=false \
   firefly-collector/logstash:9.5.5
 ```
 
@@ -392,7 +391,6 @@ docker run \
   -v ./conf/logstash/:/usr/share/logstash/pipeline/ \
   -v ./conf/ruby/:/usr/lib/firefly/ruby/ \
   -v ./conf/logstash_data/:/etc/stardust/pipeline/ \
-  -e XPACK_MONITORING_ENABLED=false \
   firefly-collector/logstash:9.5.5
 ```
 

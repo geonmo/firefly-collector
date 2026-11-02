@@ -17,8 +17,6 @@ services:
       - ./conf/certificates:/etc/stardust/pipeline/certificates/
     stdin_open: true
     tty: true
-    environment:
-      - XPACK_MONITORING_ENABLED=false
     logging:
       driver: "json-file"
       options:
