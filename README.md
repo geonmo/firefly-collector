@@ -20,6 +20,7 @@
 - [Output Options](#output-options)
 - [Sample Deployment Configurations](#sample-deployment-configurations)
 - [Logstash Deployment](#logstash-deployment)
+  - [OpenSearch Collector Setup](#opensearch-collector-setup)
 - [Dashboard](#dashboard)
 - [Field Reference](#field-reference)
 
@@ -447,6 +448,77 @@ services:
       - "DISABLE_SECURITY_DASHBOARDS_PLUGIN=true"
     network_mode: 'host'
 ```
+
+### OpenSearch Collector Setup
+
+Steps to start a fresh local collector that stores flows in OpenSearch. The order matters: the index template
+must exist before the first event arrives, otherwise `firefly-stream` is created with dynamic mappings
+(IPs as keywords, no `geo_point`) and has to be recreated.
+
+1. **Start OpenSearch** - use the Compose example above (OpenSearch 3.5.0).
+
+2. **Register the index template** - `test/opensearch-index-template` matches `firefly-*` and turns
+   `firefly-stream` into a data stream (hence `action => "create"` in the output). Its first line is the
+   Dev Tools request line, so strip it when using curl:
+
+   ```bash
+   tail -n +2 test/opensearch-index-template | \
+     curl -XPUT -H 'Content-Type: application/json' \
+     http://localhost:9200/_index_template/firefly-template -d @-
+   ```
+
+   If `firefly-stream` already exists with data from an older pipeline (e.g. `meta.ip_version` mapped as
+   `long`), remove it first: `DELETE _data_stream/firefly-stream` (or `DELETE firefly-stream` for a plain index).
+
+3. **Generate the metadata files** into `conf/logstash_data/` (see [Metadata Generation Scripts](#metadata-generation-scripts)).
+   Logstash does not start without `cric.mmdb`, because the geoip filter in `70-cric-sites.conf` requires it.
+
+   ```bash
+   python metadata/cric/cric_metadata_collector.py --output_mmdb conf/logstash_data/cric.mmdb
+   python metadata/scitags/scitags_registry_map.py --output-yaml conf/logstash_data
+   ```
+
+4. **Select the pipeline files** - Logstash loads every file in `conf/logstash/`, whatever its extension, so
+   `.example` and `.debug` files left there are loaded as well. Create the OpenSearch output and remove (or move
+   away) the other outputs:
+
+   ```bash
+   cp conf/logstash/99-opensearch.conf.example conf/logstash/99-opensearch.conf
+   # edit hosts and credentials in 99-opensearch.conf
+   find conf/logstash/ -maxdepth 1 -type f \( -name "*.example" -o -name "*.debug" \) -delete
+   ```
+
+   With the security plugin disabled (as in the Compose example) the `auth_type` block is ignored.
+
+5. **Start Logstash**
+
+   ```bash
+   docker compose up -d --build
+   docker compose logs -f logstash   # wait for "Pipelines running" and no opensearch output errors
+   ```
+
+6. **Send test data** (optional) - the sample in `test/` has a BSD syslog prefix in front of the RFC5424
+   message, which `02-parsing.conf` does not match. Replace it with a priority and send one datagram per line:
+
+   ```bash
+   tar xzOf test/firefly_test_data.log.tgz \
+     | sed -E 's/^[A-Z][a-z]{2} +[0-9]+ [0-9:]{8} [^ ]+ /<134>/' \
+     | python3 -c 'import socket,sys; s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); [s.sendto(l.rstrip("\n").encode(),("127.0.0.1",10514)) for l in sys.stdin]'
+   ```
+
+   The sample predates SciTags marking, so `meta.experiment`/`meta.activity` may be missing, and `meta.cric`
+   is only filled for IPs that are in the CRIC database.
+
+7. **Check the data**
+
+   ```
+   GET _data_stream/firefly-stream                  # created as a data stream
+   GET firefly-stream/_mapping/field/meta.src_ip    # "type": "ip"
+   GET firefly-stream/_search?size=1                # meta.cric.*, meta.experiment, throughput
+   ```
+
+   If `meta.cric` is empty for known sites, check the `cric.mmdb` path and that `pipeline.ecs_compatibility`
+   is `disabled` (set in the image, see [Logstash 9 Notes](#logstash-9-notes)).
 
 ## Dashboard
 
