@@ -13,9 +13,9 @@
   - [3. Duration Calculation (`05-calc-duration.conf`)](#3-duration-calculation-05-calc-durationconf)
   - [4. Throughput Calculation (`06-calc-throughput.conf`)](#4-throughput-calculation-06-calc-throughputconf)
   - [5. Post-Processing (`63-post-processing.conf`)](#5-post-processing-63-post-processingconf)
-  - [6. Local Traffic Filtering (`72-drop-local.conf`)](#6-local-traffic-filtering-72-drop-localconf)
-  - [7. CRIC Site Enrichment (`70-cric-sites.conf`)](#7-cric-site-enrichment-70-cric-sitesconf)
-  - [8. SciTags Experiment/Activity Enrichment (`71-scitags.conf`)](#8-scitags-experimentactivity-enrichment-71-scitagsconf)
+  - [6. CRIC Site Enrichment (`70-cric-sites.conf`)](#6-cric-site-enrichment-70-cric-sitesconf)
+  - [7. SciTags Experiment/Activity Enrichment (`71-scitags.conf`)](#7-scitags-experimentactivity-enrichment-71-scitagsconf)
+  - [8. Local Traffic Filtering (`72-drop-local.conf`)](#8-local-traffic-filtering-72-drop-localconf)
 - [Metadata Generation Scripts](#metadata-generation-scripts)
 - [Output Options](#output-options)
 - [Sample Deployment Configurations](#sample-deployment-configurations)
@@ -233,17 +233,7 @@ Normalizes and renames fields for consistent data model.
 
 **Drop condition:** Events without `[meta][state]` are dropped (incomplete flows)
 
-### 6. Local Traffic Filtering (`72-drop-local.conf`)
-
-Drops traffic where source and destination are at the same site.
-
-**Logic:**
-- Uses CRIC site names: `[meta][cric][src][name]` and `[meta][cric][dst][name]`
-- Comparison performed after site enrichment in `70-cric-sites.conf` (the file must sort after it)
-
-**Use case:** Eliminates internal network traffic for sites that both ingest and export data.
-
-### 7. CRIC Site Enrichment (`70-cric-sites.conf`)
+### 6. CRIC Site Enrichment (`70-cric-sites.conf`)
 
 Enriches flows with WLCG CRIC (Central Resource Investigation Catalog) metadata.
 
@@ -268,7 +258,7 @@ Enriches flows with WLCG CRIC (Central Resource Investigation Catalog) metadata.
 - `asn` - Autonomous System Number
 - `tier` - WLCG tier level (0, 1, 2, or 3)
 
-### 8. SciTags Experiment/Activity Enrichment (`71-scitags.conf`)
+### 7. SciTags Experiment/Activity Enrichment (`71-scitags.conf`)
 
 Translates experiment and activity IDs to human-readable names.
 
@@ -281,6 +271,16 @@ Translates experiment and activity IDs to human-readable names.
 **Output:**
 - `[meta][experiment]` - Human-readable experiment name (e.g., "ATLAS")
 - `[meta][activity]` - Human-readable activity name (e.g., "Real Data")
+
+### 8. Local Traffic Filtering (`72-drop-local.conf`)
+
+Drops traffic where source and destination are at the same site.
+
+**Logic:**
+- Uses CRIC site names: `[meta][cric][src][name]` and `[meta][cric][dst][name]`
+- Comparison performed after site enrichment in `70-cric-sites.conf` (the file must sort after it)
+
+**Use case:** Eliminates internal network traffic for sites that both ingest and export data.
 
 ## Metadata Generation Scripts
 
@@ -401,7 +401,11 @@ The collector targets Logstash 9.5.5. Compared to the former 7.17 image:
 
 - **Image** - built from `docker.elastic.co/logstash/logstash-oss` because the OpenSearch output plugin
   (`logstash-output-opensearch`) is not bundled with Logstash. Change the version with the `LOGSTASH_VERSION`
-  build argument.
+  build argument. The OpenSearch output plugin is pinned with `OPENSEARCH_OUTPUT_VERSION` (default `2.1.1`),
+  and the build fails if any output plugin used by the `99-*.conf.example` files
+  (`logstash-output-opensearch`, `logstash-integration-kafka`, `logstash-output-elasticsearch`,
+  `logstash-output-udp`) is missing. The Dockerfile also builds with Podman
+  (`podman build --format docker -t firefly-collector/logstash:9.5.5 docker/logstash`).
 - **ECS compatibility** - Logstash 8+ defaults to `pipeline.ecs_compatibility: v8`, which moves geoip results to
   `[target][geo][...]` and breaks the CRIC enrichment. `logstash-output-opensearch` is also reported to fail at
   startup on Logstash 9 with ECS enabled. The image sets `pipeline.ecs_compatibility: disabled` in `logstash.yml`.
