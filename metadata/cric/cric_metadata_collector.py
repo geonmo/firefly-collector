@@ -41,7 +41,12 @@ class CRICMetadataCollector:
     def _write_mmdb(self, args, writer):
         outfile = args.output_mmdb
         if outfile:
-            writer.to_db_file(outfile)
+            # Write to a temporary file and rename it into place. Logstash's geoip
+            # filter memory-maps the database; rewriting the same file in place
+            # corrupts the mapped data and crashes the pipeline.
+            tmp = f"{outfile}.tmp"
+            writer.to_db_file(tmp)
+            os.replace(tmp, outfile)
 
     def _get_cric_json(self, url):
         self.log.debug(f"Getting url {url}")

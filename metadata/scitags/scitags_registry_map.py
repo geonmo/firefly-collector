@@ -37,16 +37,18 @@ class ScitagsCollector:
 
     def write_scitags(self, args):
         exp_p = os.path.join(args.output_yaml, "experiments_map.yml")
-        with open(exp_p, 'w') as f:
+        with open(exp_p + ".tmp", 'w') as f:
             yaml.dump(self.experiments_map, f, sort_keys=True)
-            self.log.info(
-                f"Successfully written {exp_p}")
+        os.replace(exp_p + ".tmp", exp_p)
+        self.log.info(
+            f"Successfully written {exp_p}")
 
         act_p = os.path.join(args.output_yaml, "activities_map.yml")
-        with open(act_p, 'w') as f:
+        with open(act_p + ".tmp", 'w') as f:
             yaml.dump(self.activities_map, f, sort_keys=True)
-            self.log.info(
-                f"Successfully generated {act_p}")
+        os.replace(act_p + ".tmp", act_p)
+        self.log.info(
+            f"Successfully generated {act_p}")
 
     def _get_scitags(self):
         try:
