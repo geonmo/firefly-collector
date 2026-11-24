@@ -1,4 +1,4 @@
-FROM almalinux:9.5
+FROM almalinux:9
 
 # Set working directory
 WORKDIR /usr/src/app
@@ -6,7 +6,7 @@ WORKDIR /usr/src/app
 #Install crontab
 #RUN yum -y install cronie python3-pip git
 RUN mkdir -p /data/cache
-RUN yum -y install python3-pip git
+RUN yum -y update && yum -y install python3-pip git && yum clean all
 #COPY crontab /etc/cron.d/crontab
 #RUN chmod 0644 /etc/cron.d/crontab &&\
 #    crontab /etc/cron.d/crontab
